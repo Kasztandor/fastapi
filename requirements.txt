@@ -3,3 +3,4 @@ uvicorn
 databases
 sqlalchemy
 psycopg2-binary
+aiosqlite
