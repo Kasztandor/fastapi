@@ -4,6 +4,7 @@ from typing import List, Optional
 from datetime import datetime
 from databases import Database
 from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String, DateTime, Boolean, ForeignKey
+from contextlib import asynccontextmanager
 
 # Konfiguracja bazy danych
 DATABASE_URL = "sqlite:///./test.db"  # SQLite dla środowiska lokalnego
@@ -32,30 +33,30 @@ pomodoro_table = Table(
     Column("completed", Boolean, default=False),
 )
 
-# FastAPI app
-app = FastAPI()
+# Lifespan event handler
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup logic
+    metadata.create_all(engine)
+    await database.connect()
+    yield
+    # Shutdown logic
+    await database.disconnect()
+
+# FastAPI app with lifespan
+app = FastAPI(lifespan=lifespan)
 
 # Model Pydantic
 class Task(BaseModel):
     title: str = Field(..., min_length=3, max_length=100)
     description: Optional[str] = Field(None, max_length=300)
-    status: str = Field("TODO", regex="^(TODO|IN_PROGRESS|DONE)$")
+    status: str = Field("TODO", pattern="^(TODO|IN_PROGRESS|DONE)$")
 
 class PomodoroSession(BaseModel):
     task_id: int
     start_time: datetime
     end_time: Optional[datetime] = None
     completed: bool = False
-
-# Eventy start/stop aplikacji
-@app.on_event("startup")
-async def startup():
-    metadata.create_all(engine)
-    await database.connect()
-
-@app.on_event("shutdown")
-async def shutdown():
-    await database.disconnect()
 
 # Endpointy CRUD dla zadań
 @app.post("/tasks", status_code=201)
@@ -69,7 +70,7 @@ async def create_task(task: Task):
     return {**task.dict(), "id": task_id}
 
 @app.get("/tasks", response_model=List[dict])
-async def get_tasks(status: Optional[str] = Query(None, regex="^(TODO|IN_PROGRESS|DONE)$")):
+async def get_tasks(status: Optional[str] = Query(None, pattern="^(TODO|IN_PROGRESS|DONE)$")):
     query = tasks_table.select()
     if status:
         query = query.where(tasks_table.c.status == status)
