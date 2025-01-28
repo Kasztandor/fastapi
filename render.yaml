@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: fastapi-pomodoro
+    env: python
+    region: frankfurt
+    buildCommand: ""
+    startCommand: uvicorn main:app --host 0.0.0.0 --port 8000
+    envVars:
+      - key: DATABASE_URL
+        value: postgres://<username>:<password>@<host>:5432/<dbname>
